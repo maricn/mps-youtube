@@ -112,6 +112,8 @@ def set_window_title(title):
         ctypes.windll.kernel32.SetConsoleTitleW(xenc(title))
     else:
         sys.stdout.write(xenc('\x1b]2;' + title + '\x07'))
+        devnull = open(os.devnull, 'w')
+        subprocess.call(["echo", "-ne", "'\033];" + title + "\007'"], stdout=devnull, stderr=devnull)
 
 
 def list_update(item, lst, remove=False):
