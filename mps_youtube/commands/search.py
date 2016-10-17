@@ -218,6 +218,12 @@ def user_pls(user):
     return pl_search(user, is_user=True)
 
 
+@command(r'mypls?')
+def my_pls():
+    """ Retrieve my user's playlists. """
+    return pl_search(config.USERNAME.get, is_user=True)
+
+
 @command(r'(?:\.\.|\/\/|pls(?:earch)?\s)\s*(.*)')
 def pl_search(term, page=0, splash=True, is_user=False):
     """ Search for YouTube playlists.

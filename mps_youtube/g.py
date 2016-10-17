@@ -38,6 +38,7 @@ result_count = 0
 rprompt = None
 active = Playlist(name="active")
 userpl = {}
+username = None
 userhist = {}
 pafs = collections.OrderedDict()
 streams = collections.OrderedDict()

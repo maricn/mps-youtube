@@ -42,6 +42,7 @@ def helptext():
     {2}user <username>{1} - list YouTube uploads by <username>.
     {2}user <username>/<query>{1} - as above, but matches <query>.
     {2}userpl <username>{1} - list YouTube playlists created by <username>.
+    {2}mypls{1} - list YouTube playlists created by configured username.
     {2}pl <url or id>{1} - Open YouTube playlist by url or id.
     {2}url <url or id>{1} - Retrieve specific YouTube video by url or id.
     {2}url <url> <url> ... <url>{1} - Retrieve specific YouTube videos by url or id.
