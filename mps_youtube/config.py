@@ -14,7 +14,7 @@ from . import g, c, paths, util
 
 mswin = os.name == "nt"
 
-class ConfigItem(object):
+class ConfigItem:
 
     """ A configuration item. """
 
@@ -270,7 +270,7 @@ def check_player(player):
             return dict(valid=False, message=msg)
 
 
-class _Config(object):
+class _Config:
 
     """ Holds various configuration values. """
 
@@ -304,7 +304,9 @@ class _Config(object):
             ConfigItem("download_command", ''),
             ConfigItem("audio_format", "auto",
                 allowed_values="auto webm m4a".split()),
-            ConfigItem("username", ""),
+            ConfigItem("username", "bratesvisuzauzetixxx"),
+            ConfigItem("video_format", "auto",
+                allowed_values="auto webm mp4 3gp".split()),
             ConfigItem("api_key", "AIzaSyCIM4EzNqi1in22f4Z3Ru3iYvLaY8tc3bo",
                 check_fn=check_api_key),
             ConfigItem("autoplay", False),

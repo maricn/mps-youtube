@@ -52,6 +52,16 @@ PLFILE = os.path.join(paths.get_config_dir(), "playlist_v2")
 HISTFILE = os.path.join(paths.get_config_dir(), "play_history")
 CACHEFILE = os.path.join(paths.get_config_dir(), "cache_py_" + sys.version[0:5])
 READLINE_FILE = None
+categories = {
+        "film":      1,
+        "autos":     2,
+        "music":    10,
+        "sports":   17,
+        "travel":   19,
+        "gaming":   20,
+        "blogging": 21,
+        "news":     25
+}
 playerargs_defaults = {
     "mpv": {
         "msglevel": {"<0.4": "--msglevel=all=no:statusline=status",
@@ -150,4 +160,16 @@ text = {
     'help topic': ("  Enter *help <topic>* for specific help:"),
     'help topic_': (c.y, c.w),
     'songs rm': '*&&* tracks removed &&',
-    'songs rm_': (c.y, c.w)}
+    'songs rm_': (c.y, c.w),
+    'mkp empty': "*&&* is either empty or doesn't exist",
+    'mkp empty_': (c.b, c.r),
+    'mkp parsed': "*&&* entries found in *&&*",
+    'mkp parsed_': (c.g, c.w, c.b, c.w),
+    'mkp finding': "Finding the best match for *&&* ...",
+    'mkp finding_': (c.y, c.w),
+    'mkp desc unknown': "Unknown tabletype, *do a new search*",
+    'mkp desc unknown_': (c.y, c.w),
+    'mkp desc which data': "Which *tracks* to include?",
+    'mkp desc which data_': (c.y, c.w),
+    'mkp no valid': "*No valid tracks found in that description*",
+    'mkp no valid_': (c.y, c.w)}

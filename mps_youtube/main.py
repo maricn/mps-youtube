@@ -28,7 +28,7 @@ import os
 import pafy
 
 from . import g, c, commands, screen, history, util
-from . import __version__, playlists, content
+from . import __version__, playlists, content, listview
 from . import config
 
 try:
@@ -117,10 +117,10 @@ def main():
     # open playlists from file
     playlists.load()
 
-    #open history from file
+    # open history from file
     history.load()
 
-    arg_inp = ' '.join(g.argument_commands)
+    arg_inp = " ".join(g.argument_commands)
 
     prompt = "> "
     arg_inp = arg_inp.replace(r",,", "[mpsyt-comma]")

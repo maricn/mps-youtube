@@ -11,7 +11,7 @@ from datetime import datetime, timezone
 
 import pafy
 
-from . import g, c, terminalsize
+from . import g, c, terminalsize, description_parser
 from .playlist import Video
 
 
@@ -83,7 +83,7 @@ def has_exefile(filename):
 def dbg(*args):
     """Emit a debug message."""
     # Uses xenc to deal with UnicodeEncodeError when writing to terminal
-    logging.debug(xenc(i) for i in args)
+    logging.debug(*(xenc(i) for i in args))
 
 
 def utf8_replace(txt):
@@ -96,6 +96,7 @@ def utf8_replace(txt):
     :rtype: str
     """
     sse = sys.stdout.encoding
+    txt = str(txt)
     txt = txt.encode(sse, "replace").decode(sse)
     return txt
 
@@ -418,6 +419,26 @@ def load_player_info(player):
         g.mplayer_version = _get_mplayer_version(player)
 
 
+def fetch_songs(text,title="Unknown"):
+    return description_parser.parse(text, title)
+
+
+def number_string_to_list(text):
+    """ Parses comma separated lists """
+    text = [x.strip() for x in text.split(",")]
+    vals = []
+    for line in text:
+        k = line
+        if "-" in line:
+            separated = [int(x.strip()) for x in k.split("-")]
+            for number in list(range(separated[0]-1, separated[1])):
+                vals.append(number)
+        else:
+            vals.append(k)
+
+    return [int(x) - 1 for x in vals]
+
+
 def _get_mpv_version(exename):
     """ Get version of mpv as 3-tuple. """
     o = subprocess.check_output([exename, "--version"]).decode()
@@ -437,13 +458,13 @@ def _get_mpv_version(exename):
 
 def _get_mplayer_version(exename):
     o = subprocess.check_output([exename]).decode()
-    m = re.search('^MPlayer SVN[\s-]r([0-9]+)', o, re.MULTILINE|re.IGNORECASE)
+    m = re.search('MPlayer SVN[\s-]r([0-9]+)', o, re.MULTILINE|re.IGNORECASE)
 
     ver = 0
     if m:
         ver = int(m.groups()[0])
     else:
-        m = re.search('^MPlayer ([0-9])+.([0-9]+)', o, re.MULTILINE)
+        m = re.search('MPlayer ([0-9])+.([0-9]+)', o, re.MULTILINE)
         if m:
             ver = tuple(int(i) for i in m.groups())
 
