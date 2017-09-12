@@ -4,6 +4,7 @@ import socket
 import traceback
 from urllib.request import urlopen
 from urllib.error import HTTPError, URLError
+from .. import player
 
 try:
     # pylint: disable=F0401
@@ -76,6 +77,20 @@ def quits(showlogo=True):
 
     screen.msgexit(msg)
 
+def _format_comment(snippet, n, qnt, reply=False):
+    poster = snippet.get('authorDisplayName')
+    shortdate = util.yt_datetime(snippet.get('publishedAt', ''))[1]
+    text = snippet.get('textDisplay', '')
+    cid = ("%s%s/%s %s" % ('└── ' if reply else '', n, qnt, c.c("g", poster)))
+    return ("%-39s %s\n" % (cid, shortdate)) + \
+            c.c("y", text.strip()) + '\n\n'
+
+def _fetch_commentreplies(parentid):
+    return pafy.call_gdata('comments', {
+        'parentId': parentid,
+        'part': 'snippet',
+        'textFormat': 'plainText',
+        'maxResults': 50}).get('items', [])
 
 def fetch_comments(item):
     """ Fetch comments for item using gdata. """
@@ -89,16 +104,14 @@ def fetch_comments(item):
           'maxResults': 50,
           'part': 'snippet'}
 
-    # XXX should comment threads be expanded? this would require
-    # additional requests for comments responding on top level comments
-
     jsdata = pafy.call_gdata('commentThreads', qs)
 
-    coms = jsdata.get('items', [])
-    coms = [x.get('snippet', {}) for x in coms]
-    coms = [x.get('topLevelComment', {}) for x in coms]
+    coms = [x.get('snippet', {}) for x in jsdata.get('items', [])]
+
     # skip blanks
-    coms = [x for x in coms if len(x.get('snippet', {}).get('textDisplay', '').strip())]
+    coms = [x for x in coms
+            if len(x.get('topLevelComment', {}).get('snippet', {}).get('textDisplay', '').strip())]
+
     if not len(coms):
         g.message = "No comments for %s" % item.title[:50]
         g.content = generate_songlist_display()
@@ -107,13 +120,13 @@ def fetch_comments(item):
     commentstext = ''
 
     for n, com in enumerate(coms, 1):
-        snippet = com.get('snippet', {})
-        poster = snippet.get('authorDisplayName')
-        shortdate = util.yt_datetime(snippet.get('publishedAt', ''))[1]
-        text = snippet.get('textDisplay', '')
-        cid = ("%s/%s" % (n, len(coms)))
-        commentstext += ("%s %-35s %s\n" % (cid, c.c("g", poster), shortdate))
-        commentstext += c.c("y", text.strip()) + '\n\n'
+        snippet = com.get('topLevelComment', {}).get('snippet', {})
+        commentstext += _format_comment(snippet, n, len(coms))
+        if com.get('totalReplyCount') > 0:
+            replies = _fetch_commentreplies(com.get('topLevelComment').get('id'))
+            for n, com in enumerate(reversed(replies), 1):
+                commentstext += _format_comment(com.get('snippet', {}),
+                                                n, len(replies), True)
 
     g.current_page = 0
     g.content = content.StringContent(commentstext)
@@ -132,8 +145,8 @@ def comments(number):
 
 
 @command(r'x\s*(\d+)')
-def clip_copy(num):
-    """ Copy item to clipboard. """
+def clipcopy_video(num):
+    """ Copy video/playlist url to clipboard. """
     if g.browse_mode == "ytpl":
 
         p = g.ytpls[int(num) - 1]
@@ -166,9 +179,41 @@ def clip_copy(num):
         g.content = generate_songlist_display()
 
 
+@command(r'X\s*(\d+)')
+def clipcopy_stream(num):
+    """ Copy content stream url to clipboard. """
+    if g.browse_mode == "normal":
+
+        item = (g.model[int(num) - 1])
+        details = player.stream_details(item)[1]
+        stream = details['url']
+
+    else:
+        g.message = "clipboard copy not valid in this mode"
+        g.content = generate_songlist_display()
+        return
+
+    if has_pyperclip:
+
+        try:
+            pyperclip.copy(stream)
+            g.message = c.y + stream + c.w + " copied"
+            g.content = generate_songlist_display()
+
+        except Exception as e:
+            g.content = generate_songlist_display()
+            g.message = stream + "\nError - couldn't copy to clipboard.\n" + \
+                    ''.join(traceback.format_exception_only(type(e), e))
+
+    else:
+        g.message = "pyperclip module must be installed for clipboard support\n"
+        g.message += "see https://pypi.python.org/pypi/pyperclip/"
+        g.content = generate_songlist_display()
+
+
 @command(r'i\s*(\d{1,4})')
-def info(num):
-    """ Get video description. """
+def video_info(num):
+    """ Get video information. """
     if g.browse_mode == "ytpl":
         p = g.ytpls[int(num) - 1]
 
@@ -210,8 +255,8 @@ def info(num):
         screen.writestatus("Fetched")
         out = c.ul + "Video Info" + c.w + "\n\n"
         out += p.title or ""
-        out += "\n" + (p.description or "")
-        out += "\n\nAuthor     : " + str(p.author)
+        out += "\n" + (p.description or "") + "\n"
+        out += "\nAuthor     : " + str(p.author)
         out += "\nPublished  : " + pub.strftime("%c")
         out += "\nView count : " + str(p.viewcount)
         out += "\nRating     : " + str(p.rating)[:4]
@@ -219,6 +264,30 @@ def info(num):
         out += "\nDislikes   : " + str(p.dislikes)
         out += "\nCategory   : " + str(p.category)
         out += "\nLink       : " + "https://youtube.com/watch?v=%s" % p.videoid
+        out += "\n\n%s[%sPress enter to go back%s]%s" % (c.y, c.w, c.y, c.w)
+        g.content = out
+
+
+@command(r's\s*(\d{1,4})')
+def stream_info(num):
+    """ Get stream information. """
+    if g.browse_mode == "normal":
+        g.content = logo(c.b)
+        screen.update()
+        screen.writestatus("Fetching stream metadata..")
+        item = (g.model[int(num) - 1])
+        streams.get(item)
+        p = util.get_pafy(item)
+        setattr(p, 'ytid', p.videoid)
+        details = player.stream_details(p)[1]
+        screen.writestatus("Fetched")
+        out = "\n\n" + c.ul + "Stream Info" + c.w + "\n"
+        out += "\nExtension   : " + details['ext']
+        out += "\nSize        : " + str(details['size'])
+        out += "\nQuality     : " + details['quality']
+        out += "\nRaw bitrate : " + str(details['rawbitrate'])
+        out += "\nMedia type  : " + details['mtype']
+        out += "\nLink        : " + details['url']
         out += "\n\n%s[%sPress enter to go back%s]%s" % (c.y, c.w, c.y, c.w)
         g.content = out
 
