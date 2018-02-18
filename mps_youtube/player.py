@@ -13,6 +13,7 @@ import shlex
 from urllib.error import HTTPError, URLError
 
 from . import g, screen, c, streams, history, content, paths, config, util
+from .commands import lastfm
 
 mswin = os.name == "nt"
 not_utf8_environment = mswin or "UTF-8" not in sys.stdout.encoding
@@ -41,6 +42,9 @@ def play_range(songlist, shuffle=False, repeat=False, override=False):
 
         softrepeat = repeat and len(songlist) == 1
 
+        if g.scrobble:
+            lastfm.set_now_playing(g.artist, g.scrobble_queue[n])
+
         try:
             video, stream = stream_details(song, override=override, softrepeat=softrepeat)
             returncode = _playsong(song, stream, video, override=override, softrepeat=softrepeat)
@@ -52,6 +56,15 @@ def play_range(songlist, shuffle=False, repeat=False, override=False):
             g.message = c.y + "Playback halted" + c.w
             raise KeyboardInterrupt
             break
+
+        # skip forbidden, video removed/no longer available, etc. tracks
+        except TypeError:
+            returncode = 1
+
+        # Don't scrobble if quit prematurely
+        if g.scrobble and returncode != 43:
+            lastfm.scrobble_track(g.artist, g.album, g.scrobble_queue[n])
+
         if config.SET_TITLE.get:
             util.set_window_title("mpsyt")
 
@@ -290,9 +303,13 @@ def _generate_real_playerargs(song, override, stream, isvideo, softrepeat):
             util.list_update(pd["ignidx"], args)
 
         if "mplayer" in config.PLAYER.get:
+            if g.volume:
+                util.list_update("-volume", args)
+                util.list_update(str(g.volume), args)
             util.list_update("-really-quiet", args, remove=True)
             util.list_update("-noquiet", args)
             util.list_update("-prefer-ipv4", args)
+
 
         elif "mpv" in config.PLAYER.get:
             if "--ytdl" in g.mpv_options:
@@ -311,6 +328,8 @@ def _generate_real_playerargs(song, override, stream, isvideo, softrepeat):
                     util.list_update("--really-quiet", args, remove=True)
                     util.list_update(msglevel, args)
 
+            if g.volume:
+                util.list_update("--volume=" + str(g.volume), args)
             if softrepeat:
                 util.list_update("--loop-file", args)
 
@@ -370,7 +389,15 @@ def _launch_player(song, songdata, cmd):
     # not supported by encoding
     cmd = [util.xenc(i) for i in cmd]
 
-    arturl = "https://i.ytimg.com/vi/%s/default.jpg" % song.ytid
+    metadata = util._get_metadata(song.title)
+
+    if metadata == None :
+        arturl = "https://i.ytimg.com/vi/%s/default.jpg" % song.ytid
+        metadata = (song.ytid, song.title, song.length, arturl, [''], '')
+    else :
+        arturl = metadata['album_art_url']
+        metadata = (song.ytid, metadata['track_title'], song.length, arturl, [metadata['artist']], metadata['album'])
+
     input_file = None
     if ("mplayer" in config.PLAYER.get) or ("mpv" in config.PLAYER.get):
         input_file = _get_input_file()
@@ -394,8 +421,7 @@ def _launch_player(song, songdata, cmd):
                 os.mkfifo(fifopath)
                 cmd.extend(['-input', 'file=' + fifopath])
                 g.mprisctl.send(('mplayer-fifo', fifopath))
-                g.mprisctl.send(('metadata', (song.ytid, song.title,
-                                              song.length, arturl)))
+                g.mprisctl.send(('metadata', metadata))
 
             p = subprocess.Popen(cmd, shell=False, stdout=subprocess.PIPE,
                                  stderr=subprocess.STDOUT, bufsize=1)
@@ -414,8 +440,7 @@ def _launch_player(song, songdata, cmd):
 
                 if g.mprisctl:
                     g.mprisctl.send(('socket', sockpath))
-                    g.mprisctl.send(('metadata', (song.ytid, song.title,
-                                                  song.length, arturl)))
+                    g.mprisctl.send(('metadata', metadata))
 
             else:
                 if g.mprisctl:
@@ -423,8 +448,7 @@ def _launch_player(song, songdata, cmd):
                     os.mkfifo(fifopath)
                     cmd.append('--input-file=' + fifopath)
                     g.mprisctl.send(('mpv-fifo', fifopath))
-                    g.mprisctl.send(('metadata', (song.ytid, song.title,
-                                                  song.length, arturl)))
+                    g.mprisctl.send(('metadata', metadata))
 
                 p = subprocess.Popen(cmd, shell=False, stderr=subprocess.PIPE,
                                      bufsize=1)
@@ -510,6 +534,8 @@ def _player_status(po_obj, prefix, songlength=0, mpv=False, sockpath=None):
                 elif resp.get('event') == 'property-change' and resp['id'] == 2:
                     volume_level = int(resp['data'])
 
+                if(volume_level and volume_level != g.volume):
+                    g.volume = volume_level
                 if elapsed_s:
                     line = _make_status_line(elapsed_s, prefix, songlength,
                                             volume=volume_level)
@@ -552,6 +578,9 @@ def _player_status(po_obj, prefix, songlength=0, mpv=False, sockpath=None):
                         except ValueError:
                             continue
 
+
+                    if volume_level and volume_level != g.volume:
+                        g.volume = volume_level
                     line = _make_status_line(elapsed_s, prefix, songlength,
                                             volume=volume_level)
 
@@ -586,7 +615,7 @@ def _make_status_line(elapsed_s, prefix, songlength=0, volume=None):
         display_m = display_s // 60
         display_s %= 60
 
-        if display_m >= 100:
+        if display_m >= 60:
             display_h = display_m // 60
             display_m %= 60
 

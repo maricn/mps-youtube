@@ -8,11 +8,17 @@ from . import c, paths
 from .playlist import Playlist
 
 
+volume = None
 transcoder_path = "auto"
 delete_orig = True
 encoders = []
 muxapp = False
 meta = {}
+artist = "" # Mostly used for scrobbling purposes
+album = "" # Mostly used for scrobbling purposes
+scrobble = False
+scrobble_queue = []
+lastfm_network = None
 detectable_size = True
 command_line = False
 debug_mode = False
