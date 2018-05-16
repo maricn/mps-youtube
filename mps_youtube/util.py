@@ -16,6 +16,8 @@ import pafy
 from . import g, c, terminalsize, description_parser
 from .playlist import Video
 
+from importlib import import_module
+
 
 mswin = os.name == "nt"
 not_utf8_environment = mswin or "UTF-8" not in sys.stdout.encoding
@@ -421,7 +423,7 @@ def load_player_info(player):
         g.mplayer_version = _get_mplayer_version(player)
 
 
-def fetch_songs(text,title="Unknown"):
+def fetch_songs(text, title="Unknown"):
     return description_parser.parse(text, title)
 
 
@@ -475,18 +477,19 @@ def _get_mplayer_version(exename):
 
     return ver
 
-def _get_metadata(song_title) :
+
+def _get_metadata(song_title):
     ''' Get metadata from a song title '''
     t = re.sub("[\(\[].*?[\)\]]", "", song_title.lower())
     t = t.split('-')
 
-    if len(t) != 2 : #If len is not 2, no way of properly knowing title for sure
+    if len(t) != 2:  # If len is not 2, no way of properly knowing title for sure
         t = t[0]
         t = t.split(':')
-        if len(t) != 2 :  #Ugly, but to be safe in case all these chars exist, Will improve
+        if len(t) != 2:  # Ugly, but to be safe in case all these chars exist, Will improve
             t = t[0]
             t = t.split('|')
-            if len(t) != 2 :
+            if len(t) != 2:
                 return None
 
     t[0] = re.sub("(ft |ft.|feat |feat.).*.", "", t[0])
@@ -497,33 +500,76 @@ def _get_metadata(song_title) :
 
     metadata = _get_metadata_from_lastfm(t[0], t[1])
 
-    if metadata != None :
+    if metadata is not None:
         return metadata
 
     metadata = _get_metadata_from_lastfm(t[1], t[0])
     return metadata
 
-def _get_metadata_from_lastfm(artist, track) :
+
+def _get_metadata_from_lastfm(artist, track):
     ''' Try to get metadata with a given artist and track '''
     url = 'http://ws.audioscrobbler.com/2.0/?method=track.getInfo&api_key=12dec50313f885d407cf8132697b8712&'
-    url += urllib.parse.urlencode({"artist" :  artist}) + '&'
-    url += urllib.parse.urlencode({"track" :  track}) + '&'
+    url += urllib.parse.urlencode({"artist":  artist}) + '&'
+    url += urllib.parse.urlencode({"track":  track}) + '&'
     url += '&format=json'
 
     resp = urllib.request.urlopen(url)
 
     metadata = dict()
 
-    data = json.loads(resp.read())
+    # Prior to Python 3.6, json.loads cannot take a bytes object
+    data = json.loads(resp.read().decode('utf-8'))
 
-    if 'track' != list(data.keys())[0] :
-        return None
-    try :
+    try:
         metadata['track_title'] = data['track']['name']
         metadata['artist'] = data['track']['artist']['name']
         metadata['album'] = data['track']['album']['title']
         metadata['album_art_url'] = data['track']['album']['image'][-1]['#text']
-    except :
+    except KeyError:
+        return None
+    except IndexError:
         return None
 
     return metadata
+
+
+def assign_player(player):
+    module_name = player
+
+    if '/' in module_name:
+        module_name = module_name.split('/')[-1]
+    if module_name.endswith('.com') or module_name.endswith('.exe'):
+        module_name = module_name.split('.')[0]
+
+    try:
+        module = import_module('mps_youtube.players.{0}'.format(module_name))
+        pl = getattr(module, module_name)
+        g.PLAYER_OBJ = pl(player)
+
+    except ImportError:
+        from mps_youtube.players import GenericPlayer
+        g.PLAYER_OBJ = GenericPlayer.GenericPlayer(player)
+
+
+class CommandCompleter:
+
+    COMMANDS = ['play', 'set', 'album', 'all', 'playurl', 'browserplay',
+                'showconfig', 'encoders', 'dv', 'da', 'dl', 'd', 'download',
+                'dapl', 'dvpl', 'daupl', 'dvupl', 'daurl', 'dvurl', 'mkp',
+                'lastfm_connect', 'rmp', 'add', 'mv', 'save', 'open', 'view',
+                'ls', 'vp', 'clearcache', 'help', 'exit', 'history',
+                'history recent', 'history clear', 'channels', 'user', 'live',
+                'pls', 'mix', 'url', 'url_file', 'pl', 'rm', 'undump', 'dump',
+                'sw', 'shuffle', 'reverse', 'repeat', 'suser', 'splaylist']
+
+    def __init__(self):
+        from . import config
+        self.SET_COMMANDS = ['set ' + i.lower() for i in config]
+
+    def complete_command(self, text, state):
+        if text.startswith('set'):
+            results = [x for x in self.SET_COMMANDS if x.startswith(text)] + [None]
+        else:
+            results = [x for x in self.COMMANDS if x.startswith(text)] + [None]
+        return results[state]

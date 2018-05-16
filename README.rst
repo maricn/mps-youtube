@@ -90,21 +90,24 @@ Installation
 ------------
 Linux
 ~~~~~
+
+**Note**: ``~/.local/bin`` should be in your ``PATH`` for ``--user`` installs.
+
 Using `pip <http://www.pip-installer.org>`_::
 
-    [sudo] pip3 install mps-youtube
+    $ pip3 install --user mps-youtube
 
-To install the experimental development version and try the latest features:
+To install the experimental development version and try the latest features::
 
-    [sudo] pip3 install -U git+https://github.com/mps-youtube/mps-youtube.git
+    $ pip3 install --user -U git+https://github.com/mps-youtube/mps-youtube.git
 
 Installing youtube-dl is highly recommended::
 
-    [sudo] pip3 install youtube-dl
+    $ pip3 install --user youtube-dl
 
 For mpris2 support, install the python bindings for dbus and gobject::
 
-    [sudo] pip3 install dbus-python pygobject
+    $ pip3 install --user dbus-python pygobject
 
 Ubuntu
 ~~~~~~
